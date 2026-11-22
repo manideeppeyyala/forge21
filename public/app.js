@@ -547,11 +547,11 @@
   }
 
   /* ----- sync + push card ----- */
-  const syncErr = (e) => ({ short: 'That code looks too short', 'http-403': 'This server is already linked to a different sync code. Use your original code.', 'no-server': 'Server not found. Sync needs the Netlify deployment with functions (see README).' }[e.message] || 'Could not connect. Check your internet and try again.');
+  const syncErr = (e) => ({ short: 'That code looks too short', 'http-403': 'This server is already linked to a different sync code. Use your original code.', 'no-server': 'Server not found. Sync needs the deployed backend (Vercel + Redis, see README).' }[e.message] || 'Could not connect. Check your internet and try again.');
   function syncStatusHTML() {
     const sy = F.sync, c = sy.cfg();
     if (sy.busy) return 'Syncing…';
-    if (sy.error === 'no-server') return '⚠️ Server not found. Sync needs the Netlify deployment with functions (see README).';
+    if (sy.error === 'no-server') return '⚠️ Server not found. Sync needs the deployed backend (Vercel + Redis, see README).';
     if (sy.error === 'http-403') return '⚠️ This server belongs to a different sync code.';
     if (sy.error) return '⚠️ Last sync failed. Will retry automatically.';
     const t = sy.last || (c && c.last);

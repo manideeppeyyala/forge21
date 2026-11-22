@@ -1,4 +1,4 @@
-﻿node_modules/
-.netlify/
+node_modules/
 *.zip
 
+.vercel/

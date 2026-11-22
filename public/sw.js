@@ -1,5 +1,5 @@
 /* Forge21 service worker: offline shell, notification actions, background checks, push-ready */
-const VER = 'forge21-v2';
+const VER = 'forge21-v3';
 const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'merge.js', 'store.js', 'sync.js', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg'];
 
 self.addEventListener('install', (e) => {

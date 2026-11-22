@@ -17,7 +17,7 @@ while ($l.IsListening) {
       $ext = [IO.Path]::GetExtension($f).ToLower()
       $ctx.Response.ContentType = if ($mime.ContainsKey($ext)) { $mime[$ext] } else { 'application/octet-stream' }
       $ctx.Response.Headers.Add('Cache-Control', 'no-store')
-      # same CSP as netlify.toml, so violations show up in local testing
+      # same CSP as vercel.json, so violations show up in local testing
       $ctx.Response.Headers.Add('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' blob:; media-src 'self' blob:; connect-src 'self' data: https://fonts.googleapis.com https://fonts.gstatic.com; worker-src 'self'; manifest-src 'self'; object-src blob:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
       $ctx.Response.OutputStream.Write($b, 0, $b.Length)
     } else { $ctx.Response.StatusCode = 404 }

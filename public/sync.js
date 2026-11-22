@@ -1,4 +1,4 @@
-/* Forge21 — cross-device sync + Web Push subscription (talks to /api, see netlify/functions) */
+/* Forge21 — cross-device sync + Web Push subscription (talks to /api, see the api/ folder) */
 (function () {
   const F = window.F;
   const K = 'forge21.sync';

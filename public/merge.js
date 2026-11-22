@@ -1,4 +1,4 @@
-/* Forge21 state merge + validation: used by the browser AND the Netlify functions (same file, so both sides agree).
+/* Forge21 state merge + validation: used by the browser AND the Vercel functions in /api (same file, so both sides agree).
    Each synced top-level key carries a modified-time in state._m. Map-like keys (done, steps, weights, ...)
    are unioned entry by entry; when the same entry exists on both sides, the side with the newer key time wins.
    Deleted list items are remembered in state._t (tombstones) so they cannot come back.

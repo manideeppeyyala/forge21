@@ -1,0 +1,5 @@
+dev
+.claude
+*.zip
+.git
+README.md

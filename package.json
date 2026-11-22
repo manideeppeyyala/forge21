@@ -1,10 +1,11 @@
 {
   "name": "forge21",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "private": true,
-  "description": "Forge21: daily routine, diet and gym coach (PWA + Netlify sync/push backend)",
-  "engines": { "node": ">=18" },
+  "description": "Forge21: daily routine, diet and gym coach (PWA + Vercel sync/push backend)",
+  "engines": { "node": ">=20" },
   "dependencies": {
-    "@netlify/blobs": "^8.1.0"
+    "@upstash/redis": "^1.34.0",
+    "@vercel/blob": "^0.27.0"
   }
 }
