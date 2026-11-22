@@ -5,7 +5,7 @@
    sanitize() is a strict whitelist: anything unexpected (wrong types, odd keys, __proto__, huge strings) is dropped,
    so corrupt or hostile data can never break the app or inject markup. */
 (function (root) {
-  const KEYS = ['onboarded', 'profile', 'dayMeta', 'done', 'steps', 'water', 'weights', 'measures', 'meals', 'photos', 'tasks', 'goals', 'commit'];
+  const KEYS = ['onboarded', 'profile', 'dayMeta', 'done', 'steps', 'water', 'weights', 'measures', 'meals', 'photos', 'tasks', 'goals', 'commit', 'lifts'];
   const LISTS = { measures: 'date', photos: 'id', tasks: 'id', goals: 'id' };
   const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
   const bad = (k) => k === '__proto__' || k === 'constructor' || k === 'prototype';
@@ -43,7 +43,8 @@
         name: str(p.name, 60), heightCm: num(p.heightCm, 100, 250, 172), age: num(p.age, 10, 100, 28), sex: p.sex === 'f' ? 'f' : 'm',
         startWeight: num(p.startWeight, 30, 300, 90), targetWeight: num(p.targetWeight, 30, 300, 75),
         startDate: DATE.test(p.startDate) ? p.startDate : nowDate(), mode: p.mode === 'home' ? 'home' : 'hyd',
-        wake: HM.test(p.wake) ? p.wake : '05:45', bed: HM.test(p.bed) ? p.bed : '22:15', twoLong: p.twoLong === true, pgPlan: pg
+        wake: HM.test(p.wake) ? p.wake : '05:45', bed: HM.test(p.bed) ? p.bed : '22:15', twoLong: p.twoLong === true, pgPlan: pg,
+        exp: ['new', 'some', 'pro'].includes(p.exp) ? p.exp : 'new'
       };
     }
     if ('dayMeta' in s) o.dayMeta = dateMap(s.dayMeta, (v) => {
@@ -97,6 +98,17 @@
         wcVisit: typeof c.wcVisit === 'string' && DATE.test(c.wcVisit) ? c.wcVisit : null, wcPost: typeof c.wcPost === 'string' && DATE.test(c.wcPost) ? c.wcPost : null,
         wcInterval: Math.round(num(c.wcInterval, 1, 365, 12)), wcEvery: Math.round(num(c.wcEvery, 1, 365, 3)), wcName: str(c.wcName, 40).trim() || 'Venue shoot'
       };
+    }
+    if ('lifts' in s) { // per-exercise session log: { exerciseId: [{ d: date, w: kg, r: [reps per set] }] }
+      const L = {};
+      keysOf(s.lifts).forEach((id) => {
+        if (!ID.test(id) || !Array.isArray(s.lifts[id])) return;
+        const list = s.lifts[id].filter((e) => isObj(e) && typeof e.d === 'string' && DATE.test(e.d) && Array.isArray(e.r)).slice(-30).map((e) => ({
+          d: e.d, w: num(e.w, 0, 500, 0), r: e.r.slice(0, 10).map((x) => Math.round(num(x, 0, 200, 0)))
+        }));
+        if (list.length) L[id] = list;
+      });
+      o.lifts = L;
     }
     if ('_m' in s) { const m = {}; KEYS.forEach((k) => { const v = num(isObj(s._m) ? s._m[k] : 0, 0, 9e15, 0); if (v) m[k] = v; }); o._m = m; }
     if ('_t' in s) { const t = {}; keysOf(s._t).forEach((k) => { if (ID.test(k)) { const v = num(s._t[k], 0, 9e15, 0); if (v) t[k] = v; } }); o._t = t; }

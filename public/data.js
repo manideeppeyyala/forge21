@@ -10,85 +10,40 @@
   F.dow = (k) => F.parse(k).getDay(); // 0 = Sunday
   F.diffDays = (a, b) => Math.round((F.parse(b) - F.parse(a)) / 864e5);
   F.weekStart = (k) => { const d = F.dow(k); return F.addDays(k, d === 0 ? -6 : 1 - d); }; // Monday
-  const m2t = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+  const m2t = (m) => { m = ((m % 1440) + 1440) % 1440; return `${pad(Math.floor(m / 60))}:${pad(m % 60)}`; };
   const t2m = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
   F.m2t = m2t; F.t2m = t2m;
   F.fmt12 = (t) => { const m = t2m(t); let h = Math.floor(m / 60); const mm = m % 60; const ap = h >= 12 ? 'PM' : 'AM'; h = h % 12 || 12; return `${h}:${pad(mm)} ${ap}`; };
   F.DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
   F.DAYS_LONG = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-  /* ---------- workouts (index = weekday, 0 = Sunday) ---------- */
-  F.WORKOUTS = {
-    1: { name: 'Chest + Triceps', focus: 'Heavy chest day · upper-chest priority', ex: [
-      ['Incline DB press', '4 × 8–10', 'Your priority lift. Slow 3-sec lowering.'],
-      ['Flat barbell / DB press', '4 × 6–8', 'Add weight when all reps feel clean.'],
-      ['Pec-deck or cable fly', '3 × 12–15', 'Pause 1 sec at the stretch.'],
-      ['Dips (assisted if needed)', '3 × 8–12'],
-      ['Rope pushdown', '3 × 12'],
-      ['Overhead triceps extension', '3 × 12'],
-      ['Cable crunch', '3 × 15', 'Belly = deficit + core strength. You cannot spot-burn it.']] },
-    2: { name: 'Back + Biceps', focus: 'Posture and a wider frame', ex: [
-      ['Lat pulldown', '4 × 10'],
-      ['Seated cable row', '4 × 10'],
-      ['One-arm DB row', '3 × 10'],
-      ['Face pull', '3 × 15'],
-      ['EZ-bar curl', '3 × 12'],
-      ['Hammer curl', '3 × 12'],
-      ['Plank', '3 × 45 sec'],
-      ['Hanging knee raise', '3 × 12']] },
-    3: { name: 'Legs', focus: 'Biggest calorie burn of the week', ex: [
-      ['Squat or leg press', '4 × 10'],
-      ['Romanian deadlift', '3 × 10'],
-      ['Walking lunges', '3 × 12 / leg'],
-      ['Leg curl', '3 × 12'],
-      ['Standing calf raise', '4 × 15'],
-      ['Incline treadmill walk', '10 min', 'Cool-down, steady pace.']] },
-    4: { name: 'Shoulders + Core', focus: 'Capped shoulders make the waist look smaller', ex: [
-      ['Overhead press', '4 × 8'],
-      ['Lateral raise', '4 × 15'],
-      ['Rear-delt fly', '3 × 15'],
-      ['DB shrug', '3 × 12'],
-      ['Ab-wheel or decline crunch', '3 × 12'],
-      ['Russian twist', '3 × 20'],
-      ['Leg raise', '3 × 12']] },
-    5: { name: 'Chest + Upper', focus: 'Second chest session of the week · volume', ex: [
-      ['Incline machine press', '4 × 10'],
-      ['Machine / DB chest press', '3 × 12'],
-      ['Cable crossover (low → high)', '4 × 15'],
-      ['Push-ups to near failure', '2 sets'],
-      ['Assisted pull-up', '3 × 8'],
-      ['Lateral raise', '3 × 15']] },
-    6: { name: 'Full body + Abs', focus: 'Metabolic circuit, then core', ex: [
-      ['Goblet squat', '3 × 12'],
-      ['DB bench press', '3 × 12'],
-      ['Cable row', '3 × 12'],
-      ['Farmer walk', '4 × 40 m'],
-      ['Incline treadmill walk', '20 min'],
-      ['Plank + side plank', '3 rounds'],
-      ['Bicycle crunch', '3 × 20']] },
-    0: { name: 'Rest + mobility', focus: 'No lifting. Muscles grow while you recover.', ex: [
-      ['Hip + thoracic mobility', '10 min'],
-      ['Easy stretch / foam roll', '10 min'],
-      ['Long walk or Hyderabad explore', 'steps goal']] }
-  };
+  /* workouts live in fitness.js (F.WORKOUTS, F.EX) */
 
-  /* ---------- meal database (approximate, per serving) ---------- */
+  /* ---------- meal database (approximate, per serving) ----------
+     {rice} {roti} {oats} are the adjustable carb portions: they scale so each day's plan lands on your calorie target. */
   F.MEAL_DB = {
-    pre: { label: 'Pre-workout', items: ['Black coffee, no sugar', '1 banana'], kcal: 105, p: 1, f: 3 },
-    post: { label: 'Post-workout shake', items: ['1 scoop whey in 250 ml toned milk', 'Budget swap: 4 egg whites + 1 glass milk'], kcal: 280, p: 33, f: 0 },
-    bfast: { label: 'Breakfast', items: ['Oats 60 g cooked in milk or water', '3 boiled eggs', '1 apple or papaya bowl'], kcal: 520, p: 26, f: 10, note: 'If the PG breakfast is light (idli, upma, poha) eat it, then add the 3 eggs.' },
-    snack: { label: 'Evening snack', items: ['Roasted chana 50 g', 'Curd 150 g', '1 guava'], kcal: 340, p: 18, f: 13 },
+    pre: { items: ['Black coffee, no sugar', '1 banana'], kcal: 105, p: 1, f: 3 },
+    post: { items: ['1 scoop whey in 250 ml toned milk', 'Budget swap: 4 egg whites + 1 glass milk'], kcal: 280, p: 33, f: 0 },
+    bfast: { items: ['{oats}', '3 boiled eggs', '1 apple or papaya bowl'], kcal: 520, p: 26, f: 10, note: 'If the PG breakfast is light (idli, upma, poha) eat it, then add the 3 eggs.' },
+    snack: { items: ['Roasted chana 50 g', 'Curd 150 g', '1 guava'], kcal: 340, p: 18, f: 13 },
     lunch: {
-      egg: { items: ['Rice 1 cup', 'Dal 1 cup', 'Egg curry (3 eggs)', 'Salad'], kcal: 720, p: 38, f: 10 },
-      chicken: { items: ['Chicken 150 g (grilled or curry)', 'Rice 1 cup', 'Dal', 'Salad'], kcal: 740, p: 60, f: 9 },
-      soya: { items: ['Soya chunks 50 g dry, as curry', 'Rice 1 cup', 'Dal', 'Curd 100 g'], kcal: 760, p: 45, f: 14 }
+      egg: { items: ['{rice}', 'Dal 1 cup', 'Egg curry (3 eggs)', 'Salad'], kcal: 720, p: 38, f: 10 },
+      chicken: { items: ['Chicken 150 g (grilled or curry)', '{rice}', 'Dal', 'Salad'], kcal: 740, p: 60, f: 9 },
+      soya: { items: ['Soya chunks 50 g dry, as curry', '{rice}', 'Dal', 'Curd 100 g'], kcal: 760, p: 45, f: 14 }
     },
     dinner: {
-      egg: { items: ['Omelette: 2 whole eggs + 4 whites', '2 roti', 'Sabzi + salad'], kcal: 600, p: 38, f: 7 },
-      chicken: { items: ['Chicken 150 g', '2 roti', 'Sabzi + salad'], kcal: 600, p: 55, f: 7 },
-      soya: { items: ['Soya chunks 40 g dry', 'Paneer 50 g or extra curd', '2 roti', 'Sabzi'], kcal: 610, p: 38, f: 8 }
+      egg: { items: ['Omelette: 2 whole eggs + 4 whites', '{roti}', 'Sabzi + salad'], kcal: 600, p: 38, f: 7 },
+      chicken: { items: ['Chicken 150 g', '{roti}', 'Sabzi + salad'], kcal: 600, p: 55, f: 7 },
+      soya: { items: ['Soya chunks 40 g dry', 'Paneer 50 g or extra curd', '{roti}', 'Sabzi'], kcal: 610, p: 38, f: 8 }
     }
   };
+  // one step of each adjustable portion, and where it starts / its limits
+  const PORTION = {
+    rice: { kcal: 50, p: 1, f: 0.15, base: 4, min: 2, max: 8 }, // quarter cups of cooked rice (1 cup ≈ 160 g ≈ 200 kcal)
+    roti: { kcal: 95, p: 3, f: 3, base: 2, min: 1, max: 4 }, // whole-wheat roti, ~30 g atta each
+    oats: { kcal: 38, p: 1.3, f: 1, base: 6, min: 4, max: 10 } // 10 g dry oats
+  };
+  const SLOT_LABEL = { pre: 'Pre-workout', post: 'Post-workout shake', bfast: 'Breakfast', lunch: 'Lunch', snack: 'Evening snack', dinner: 'Dinner' };
   // what a day looks like for each PG menu type
   F.DAYTYPES = {
     egg: { label: 'PG egg day', lunch: 'egg', dinner: 'soya' },
@@ -96,36 +51,83 @@
     self: { label: 'Self-managed', lunch: 'soya', dinner: 'egg' }
   };
   F.SLOTS = ['pre', 'post', 'bfast', 'lunch', 'snack', 'dinner'];
+  F.daySlots = (key) => (F.dow(key) === 0 ? ['bfast', 'lunch', 'snack', 'dinner'] : F.SLOTS); // Sunday has no gym, so no pre/post
 
   F.dayType = (key, st) => (st.profile.pgPlan && st.profile.pgPlan[F.dow(key)]) || 'self';
+  const baseMeal = (key, slot, st) => {
+    const dt = F.DAYTYPES[F.dayType(key, st)];
+    if (slot === 'lunch') return F.MEAL_DB.lunch[dt.lunch];
+    if (slot === 'dinner') return F.MEAL_DB.dinner[dt.dinner];
+    return F.MEAL_DB[slot];
+  };
+  const usesPortion = (m, k) => m.items.some((i) => i === '{' + k + '}');
+
+  // pick rice / roti / oats amounts so the day's planned calories match the target
+  F.portions = (key, st) => {
+    const tg = F.targets(st);
+    const meals = F.daySlots(key).map((s) => baseMeal(key, s, st));
+    const q = { rice: PORTION.rice.base, roti: PORTION.roti.base, oats: PORTION.oats.base };
+    const avail = Object.keys(PORTION).filter((k) => meals.some((m) => usesPortion(m, k)));
+    let delta = tg.kcal - meals.reduce((a, m) => a + m.kcal, 0);
+    const order = delta < 0 ? ['rice', 'roti', 'oats'] : ['rice', 'oats', 'roti'];
+    for (let guard = 0, i = 0; guard < 40 && Math.abs(delta) >= 25; guard++, i++) {
+      const dir = delta > 0 ? 1 : -1;
+      let moved = false;
+      for (let j = 0; j < order.length && !moved; j++) {
+        const k = order[(i + j) % order.length], P = PORTION[k];
+        if (!avail.includes(k) || Math.abs(delta) < P.kcal / 2) continue;
+        const nv = q[k] + dir;
+        if (nv < P.min || nv > P.max) continue;
+        q[k] = nv; delta -= dir * P.kcal; moved = true;
+      }
+      if (!moved) break;
+    }
+    return q;
+  };
+  const QTR = ['', '¼', '½', '¾'];
+  const cups = (n) => { const w = Math.floor(n / 4), r = n % 4; return (w ? String(w) : '') + QTR[r] || '0'; };
+  const portionText = (k, n) => k === 'rice' ? `Rice ${cups(n)} cup${n > 4 ? 's' : ''} (cooked)` : k === 'roti' ? `${n} roti` : `Oats ${n * 10} g, cooked in milk or water`;
 
   F.mealFor = (key, slot, st) => {
-    const dt = F.DAYTYPES[F.dayType(key, st)];
-    let m = F.MEAL_DB[slot];
-    if (slot === 'lunch') m = F.MEAL_DB.lunch[dt.lunch];
-    if (slot === 'dinner') m = F.MEAL_DB.dinner[dt.dinner];
-    const label = { pre: 'Pre-workout', post: 'Post-workout shake', bfast: 'Breakfast', lunch: 'Lunch', snack: 'Evening snack', dinner: 'Dinner' }[slot];
-    return Object.assign({ slot, label }, m);
+    const m = baseMeal(key, slot, st), q = F.portions(key, st);
+    const out = { slot, label: SLOT_LABEL[slot], kcal: m.kcal, p: m.p, f: m.f, note: m.note };
+    out.items = m.items.map((it) => {
+      const k = it.slice(1, -1);
+      if (it[0] !== '{' || !PORTION[k]) return it;
+      const d = q[k] - PORTION[k].base;
+      out.kcal += d * PORTION[k].kcal; out.p += d * PORTION[k].p; out.f += d * PORTION[k].f;
+      return portionText(k, q[k]);
+    });
+    out.kcal = Math.round(out.kcal); out.p = Math.round(out.p); out.f = Math.round(out.f);
+    return out;
   };
 
   F.dayMacros = (key, st) => {
     const t = { kcal: 0, p: 0, f: 0 };
-    F.buildDay(key, st).filter((b) => b.meal).forEach((b) => { const m = F.mealFor(key, b.meal, st); t.kcal += m.kcal; t.p += m.p; t.f += m.f; });
+    F.daySlots(key).forEach((s) => { const m = F.mealFor(key, s, st); t.kcal += m.kcal; t.p += m.p; t.f += m.f; });
     return t;
   };
 
-  /* ---------- targets (recomposition: moderate deficit, high protein) ---------- */
+  /* ---------- targets (recomposition: moderate deficit, high protein) ----------
+     BMR: Mifflin–St Jeor (1990). Activity ×1.55 = lifting 6 days + 10K steps.
+     Deficit: 20% of maintenance, which lands near 0.5–1% of body weight per week. Never below BMR.
+     Protein: 2 g per kg of goal weight ≈ 2.3–3.1 g per kg lean mass in a deficit (Helms 2014), above the 1.6 g/kg floor (Morton 2018).
+     Fat: 0.8 g/kg goal weight (min 55 g) for hormones. Carbs fill the rest. Fibre: 14 g per 1,000 kcal.
+     Water: ~35 ml/kg + 0.5 L for training. */
   F.targets = (st) => {
     const p = st.profile;
-    const ws = Object.keys(st.weights).sort();
-    const w = ws.length ? st.weights[ws[ws.length - 1]] : p.startWeight;
+    const w = F.curWeight(st);
     const bmr = 10 * w + 6.25 * p.heightCm - 5 * p.age + (p.sex === 'f' ? -161 : 5);
     const tdee = bmr * 1.55;
-    const kcal = Math.max(1800, Math.round((tdee - 650) / 50) * 50);
-    const protein = Math.round((2.0 * p.targetWeight) / 5) * 5;
+    const goal = p.targetWeight < w - 0.5 ? 'cut' : p.targetWeight > w + 0.5 ? 'gain' : 'hold';
+    const raw = goal === 'cut' ? tdee * 0.8 : goal === 'gain' ? tdee + 250 : tdee;
+    const kcal = Math.round(Math.max(bmr, raw) / 50) * 50;
+    const protein = Math.round((2.0 * Math.max(p.targetWeight, F.lbm(st))) / 5) * 5;
     const fat = Math.max(55, Math.round(0.8 * p.targetWeight));
     const carbs = Math.max(0, Math.round((kcal - protein * 4 - fat * 9) / 4));
-    return { bmr: Math.round(bmr), tdee: Math.round(tdee), kcal, protein, fat, carbs, fiber: 35, water: 3.5, weight: w };
+    const fiber = Math.round((14 * kcal) / 1000);
+    const water = Math.min(5, Math.max(2.5, Math.round((0.035 * w + 0.5) * 4) / 4));
+    return { bmr: Math.round(bmr), tdee: Math.round(tdee), kcal, deficit: Math.round(tdee - kcal), goal, protein, fat, carbs, fiber, water, weight: w };
   };
 
   /* ---------- day rules ---------- */
@@ -208,10 +210,10 @@
         d = meal(t2m('20:00'), 30, 'dinner');
         d = add(d, 60, 'walk', 'Night walk · 10K push', WALK_SUB, 'move', { notify: 1, follow: 30, emoji: '👟' });
       }
-      const bed = t2m(p.bed);
+      const bed = t2m(p.bed) <= t2m(p.wake) ? t2m(p.bed) + 1440 : t2m(p.bed); // lights-out after midnight
       if (bed - d >= 15) add(d, bed - d, 'wind', 'Wind-down', 'Screens off, 10 min stretch, plan tomorrow.', 'rest', { notify: 1 });
       add(d, 0, 'steps', `Hit ${F.stepGoal(key, st).toLocaleString('en-IN')} steps`, 'Auto-ticks from your step count.', 'move', { auto: 'steps', target: 1 });
-      add(d, 0, 'water', 'Drink 3.5 L water', 'Auto-ticks from the water counter.', 'life', { auto: 'water', target: 1 });
+      add(d, 0, 'water', `Drink ${F.targets(st).water} L water`, 'Auto-ticks from the water counter.', 'life', { auto: 'water', target: 1 });
       add(bed, 0, 'bed', 'Lights out', `Asleep by ${F.fmt12(p.bed)} · wake ${F.fmt12(p.wake)} = ${((24 * 60 - bed + W) / 60).toFixed(1)} h sleep`, 'sleep', { notify: 1, emoji: '🌙' });
     } else {
       const W = t2m(p.wake) + 45;
@@ -263,10 +265,10 @@
       }
       let d = meal(t2m('20:00'), 30, 'dinner');
       d = add(d, 60, 'walk', 'Night walk', WALK_SUB, 'move', { notify: 1, follow: 30, emoji: '👟' });
-      const bed = t2m(p.bed);
+      const bed = t2m(p.bed) <= t2m(p.wake) ? t2m(p.bed) + 1440 : t2m(p.bed); // lights-out after midnight
       if (bed - d >= 15) add(d, bed - d, 'wind', 'Wind-down', 'Screens off, stretch, plan the week.', 'rest', { notify: 1 });
       add(d, 0, 'steps', `Hit ${F.stepGoal(key, st).toLocaleString('en-IN')} steps`, 'Auto-ticks from your step count.', 'move', { auto: 'steps', target: 1 });
-      add(d, 0, 'water', 'Drink 3.5 L water', 'Auto-ticks from the water counter.', 'life', { auto: 'water', target: 1 });
+      add(d, 0, 'water', `Drink ${F.targets(st).water} L water`, 'Auto-ticks from the water counter.', 'life', { auto: 'water', target: 1 });
       add(bed, 0, 'bed', 'Lights out', `Asleep by ${F.fmt12(p.bed)}`, 'sleep', { notify: 1, emoji: '🌙' });
     }
 
@@ -298,7 +300,7 @@
     if (d) return d;
     if (b.auto === 'weigh' && st.weights[key]) return 'done';
     if (b.auto === 'steps' && (st.steps[key] || 0) >= F.stepGoal(key, st)) return 'done';
-    if (b.auto === 'water' && (st.water[key] || 0) >= 3500) return 'done';
+    if (b.auto === 'water' && (st.water[key] || 0) >= F.targets(st).water * 1000) return 'done';
     if (b.meal && st.meals[key] && st.meals[key][b.meal]) return 'done';
     return null;
   };
@@ -328,13 +330,13 @@
   F.dayNumber = (st, key) => F.diffDays(st.profile.startDate, key || F.dk()) + 1;
 
   /* ---------- notifications content ---------- */
-  F.alertText = (b, kind) => {
+  F.alertText = (b, kind, key) => {
     const e = b.emoji || (b.meal ? '🍽️' : '⏰');
     if (kind === 'check') {
       return { title: `Did you do it? ${e}`, body: `${b.title} was at ${F.fmt12(b.t)}. Tap Done if it's ticked off, or Skip.` };
     }
     if (b.meal) return { title: `${e || '🍽️'} ${b.title}: time to eat`, body: `~${b.p} g protein planned. Snap a photo and I'll log it.` };
-    if (b.id === 'gym') return { title: `🏋️ ${b.title}`, body: 'Warm up, then lift with intent. Chest and core are the priority.' };
+    if (b.id === 'gym') return { title: `🏋️ ${b.title}`, body: (() => { const w = F.WORKOUTS[F.dow(key || F.dk())]; return w && !w.rest ? `${w.ex.length} exercises · ${F.hardSets(F.dow(key || F.dk()))} hard sets. Warm up, then open Fitness for today's weights.` : 'Warm up, then lift with intent.'; })() };
     if (b.id === 'bed') return { title: '🌙 Lights out', body: 'Sleep is where the fat loss and muscle gain actually happen.' };
     if (b.id === 'weigh') return { title: '⚖️ Weigh-in', body: 'Step on the scale and log it. Trends beat single days.' };
     return { title: `${e} ${b.title}`, body: b.sub || F.fmt12(b.t) };
@@ -355,7 +357,7 @@
         const mk = (offsetMin, kind) => {
           const at = base + (b.s + offsetMin) * 60000;
           if (at < fromTs - 6 * 3600e3) return;
-          const tx = F.alertText(b, kind);
+          const tx = F.alertText(b, kind, key);
           out.push({ at, tag: `${key}:${b.id}:${kind}`, key, id: b.id, kind, title: tx.title, body: tx.body, actions: F.alertActions(b) });
         };
         mk(0, 'start');

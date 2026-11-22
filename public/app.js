@@ -23,14 +23,16 @@
     plus: '<path d="M12 5v14M5 12h14"/>',
     check: '<path d="M5 12.5l4.5 4.5L19 7"/>',
     x: '<path d="M6 6l12 12M18 6L6 18"/>',
+    fit: '<path d="M6.5 6.5v11M17.5 6.5v11M3.5 9v6M20.5 9v6M6.5 12h11"/>',
+    flip: '<path d="M4 9a8 8 0 0114-3l2 2M20 15a8 8 0 01-14 3l-2-2"/><path d="M20 4v4h-4M4 20v-4h4"/>',
     file: '<path d="M14 3H7a2 2 0 00-2 2v14a2 2 0 002 2h10a2 2 0 002-2V8z"/><path d="M14 3v5h5"/>'
   };
   const svg = (n, cls) => `<svg viewBox="0 0 24 24"${cls ? ` class="${cls}"` : ''} aria-hidden="true">${I[n]}</svg>`;
-  const TABS = [['today', 'Today'], ['plan', 'Plan'], ['fuel', 'Fuel'], ['track', 'Track'], ['tasks', 'Tasks']];
+  const TABS = [['today', 'Today'], ['plan', 'Plan'], ['fuel', 'Fuel'], ['fit', 'Fitness'], ['track', 'Track'], ['tasks', 'Tasks']];
   const CATC = { move: 'var(--c-move)', food: 'var(--c-food)', content: 'var(--c-content)', work: 'var(--c-work)', sleep: 'var(--c-sleep)', rest: 'var(--c-rest)', life: 'var(--c-life)' };
 
   /* ---------- state helpers ---------- */
-  let cur = 'today', selDay = today(), seg = 'weight', animate = true, justId = null;
+  let cur = 'today', selDay = today(), seg = 'weight', animate = true, justId = null, fitDay = F.dow(today());
   const openBlocks = new Set();
   const ringPrev = {};
 
@@ -76,9 +78,10 @@
     ringPrev[id] = Math.min(100, pct);
     return `<div class="ring ${sm ? 'sm' : ''}"><svg viewBox="0 0 120 120"><circle class="bg" cx="60" cy="60" r="${r}"/><circle class="fg" cx="60" cy="60" r="${r}" style="stroke-dasharray:${C};stroke-dashoffset:${C * (1 - prev / 100)}" data-to="${C * (1 - Math.min(100, pct) / 100)}"/></svg><div class="mid"><b>${mid}</b>${sub ? `<span>${sub}</span>` : ''}</div></div>`;
   }
-  function openSheet(html, mount) {
+  function openSheet(html, mount, opts) {
     closeSheet(true);
     const root = $('#sheet-root');
+    root.dataset.lock = opts && opts.lock ? '1' : '';
     root.innerHTML = `<div class="scrim" data-act="scrim"><div class="sheet" role="dialog" aria-modal="true"><div class="grab"></div>${html}</div></div>`;
     document.body.style.overflow = 'hidden';
     if (mount) mount($('.sheet', root));
@@ -87,6 +90,7 @@
   function closeSheet(instant) {
     const root = $('#sheet-root');
     const sh = $('.sheet', root);
+    stopLive();
     document.body.style.overflow = '';
     if (!sh) return;
     if (instant) { root.innerHTML = ''; return; }
@@ -195,8 +199,8 @@
     const ml = st.meals[key] && b.meal ? st.meals[key][b.meal] : null;
     let detail = '';
     if (b.workout) {
-      const wo = F.WORKOUTS[F.dow(key)];
-      detail = `<ul class="exlist">${wo.ex.map((e) => `<li><span>${esc(e[0])}${e[2] ? `<small>${esc(e[2])}</small>` : ''}</span><b>${esc(e[1])}</b></li>`).join('')}</ul>`;
+      const dw = F.dow(key), wo = F.WORKOUTS[dw];
+      detail = `<ul class="exlist">${wo.ex.map((e) => { const r = F.recommend(e, st); return `<li><span>${esc(F.EX[e[0]].n)}<small>${esc(r.kind === 'feel' ? 'Weight by feel (machine/cable)' : r.kind === 'bw' ? 'Bodyweight' : r.kind === 'time' || r.kind === 'cardio' ? 'Timed' : r.text)}</small></span><b>${setsReps(e)}</b></li>`; }).join('')}</ul><button class="btn sm" style="margin-top:10px" data-act="fitgo" data-d="${dw}">${svg('fit')}Open full workout</button>`;
     } else if (b.meal) {
       const m = F.mealFor(key, b.meal, st);
       detail = `<ul class="exlist">${m.items.map((i) => `<li><span>${esc(i)}</span></li>`).join('')}</ul>${m.note ? `<p>${esc(m.note)}</p>` : ''}<p>≈ ${m.kcal} kcal · ${m.p} g protein · ${m.f} g fibre</p>`;
@@ -206,7 +210,7 @@
     if (b.meal) tags.push(`<span class="tag">${b.kcal} kcal · ${b.p} g P</span>`);
     if (b.src) tags.push(`<span class="tag c" style="--cc:var(--c-food)">${esc(b.src)}</span>`);
     if (b.flex) tags.push('<span class="tag">flex: use any free gap</span>');
-    if (b.dur) tags.push(`<span class="tag">${b.dur >= 60 ? (b.dur / 60).toFixed(b.dur % 60 ? 2 : 0).replace(/\.?0+$/, '') + ' h' : b.dur + ' min'}</span>`);
+    if (b.dur) tags.push(`<span class="tag">${b.dur >= 60 ? parseFloat((b.dur / 60).toFixed(2)) + ' h' : b.dur + ' min'}</span>`);
     const cam = b.meal ? `<button class="cam" data-act="cam" data-key="${key}" data-id="${b.id}">${svg('cam')}${ml ? 'Retake' : 'Add photo'}</button>` : '';
     return `<div class="blk ${b.info ? 'info' : ''} ${s || ''} ${now ? 'now' : ''} ${b.auto && b.target ? 'target' : ''} ${justId === key + b.id ? 'just' : ''}">
       <div class="tm">${h}<small>${ap}</small></div>
@@ -258,7 +262,7 @@
       <div class="stats" style="--i:3">
         <div class="stat tap" data-act="weight"><span>Weight</span><b>${lw ? kg(lw) : kg(w)}<small style="font-size:12px;font-weight:500"> kg</small></b><span class="${lost > 0 ? 'up' : ''}">${lost > 0 ? '−' + kg(lost) + ' kg' : lost < 0 ? '+' + kg(-lost) + ' kg' : 'start'} · ${lw ? 'logged' : 'tap to log'}</span></div>
         <div class="stat tap" data-act="steps"><span>Steps</span><b>${inr(steps)}</b>${bar(steps / goal * 100)}</div>
-        <div class="stat tap" data-act="water"><span>Water</span><b>${(water / 1000).toFixed(2).replace(/\.?0+$/, '')}<small style="font-size:12px;font-weight:500"> L</small></b>${bar(water / 3500 * 100)}</div>
+        <div class="stat tap" data-act="water"><span>Water</span><b>${(water / 1000).toFixed(2).replace(/\.?0+$/, '')}<small style="font-size:12px;font-weight:500"> L</small></b>${bar(water / (tg.water * 1000) * 100)}</div>
       </div>
       <div class="card" style="--i:4"><h3>Coach <small>${A.avg !== null ? `7-day avg ${A.avg}%` : 'warming up'}</small></h3>${A.tips.slice(0, 2).map(tipHTML).join('')}</div>
       <div class="card" style="--i:5"><h3>${cycleCard(dn, toGo, w)}</h3></div>
@@ -266,10 +270,12 @@
   }
   function cycleCard(dn, toGo, w) {
     const p = S().profile, r = weeklyRate();
-    const prog = Math.max(0, Math.min(100, ((p.startWeight - w) / (p.startWeight - p.targetWeight)) * 100));
+    const span = p.startWeight - p.targetWeight;
+    const prog = Math.abs(span) < 0.1 ? 100 : Math.max(0, Math.min(100, ((p.startWeight - w) / span) * 100));
     let proj = 'Log a week of weights to see your projected date.';
     const rate = r !== null && r < -0.1 ? -r : null;
     if (rate) { const wk = toGo / rate; const d = new Date(Date.now() + wk * 7 * 864e5); proj = `At ${kg(rate)} kg/week you reach ${p.targetWeight} kg around ${d.toLocaleString('en-IN', { month: 'short', year: 'numeric' })}.`; }
+    else if (span < 0) proj = 'Your goal is above your start weight: eat at a small surplus and let the scale climb slowly.';
     else if (toGo > 0) proj = `${kg(toGo)} kg to go. A healthy pace is about 0.7–1 kg/week, so ${p.targetWeight} kg is a ~${Math.round(toGo / 0.85)}-week journey. The 21 days are the launch.`;
     return `<div style="width:100%"><div class="row" style="justify-content:space-between"><span>${dn > 21 ? 'Beyond the reset' : '21-day reset'}</span><small class="mu" style="font-family:var(--f-b);font-weight:500;font-size:12px">${p.startWeight} → ${p.targetWeight} kg</small></div><div style="margin:10px 0">${bar(dn > 21 ? 100 : dn / 21 * 100)}</div><div class="mu" style="font-size:12.5px;font-weight:500;font-family:var(--f-b)">${dn > 21 ? 'The 21 days are done. Keep the machine running.' : `${21 - dn} days left in this reset.`}</div><div style="margin:12px 0 6px">${bar(prog)}</div><div class="mu" style="font-size:12.5px;font-weight:500;font-family:var(--f-b)">${esc(proj)}</div></div>`;
   }
@@ -296,7 +302,7 @@
         <div class="grid2"><div class="stat"><b>${wc.sinceVisit === null ? '—' : wc.sinceVisit + 'd'}</b><span>since last visit${wc.nextVisit ? ' · next ' + shortDate(wc.nextVisit) : ''}</span></div><div class="stat"><b class="${wc.postDue ? 'down' : ''}">${wc.sincePost === null ? '—' : wc.sincePost + 'd'}</b><span>since last post${wc.postDue ? ' · overdue' : ''}</span></div></div>
         <div class="row" style="margin-top:10px;gap:8px"><button class="btn sm pri" data-act="witch" data-v="visit">Visited today</button><button class="btn sm" data-act="witch" data-v="post">Posted today</button></div></div>
       <div style="--i:6"><div class="top" style="margin:18px 0 4px"><h1 style="font-size:20px">${F.DAYS[F.dow(key)]} timeline</h1></div>${timeline(key)}</div>
-      <div class="card" style="--i:7"><h3>Weekly training split</h3>${[1, 2, 3, 4, 5, 6, 0].map((d) => `<div class="row" style="padding:8px 0;border-top:1px solid var(--line)"><b class="num" style="width:44px">${F.DAYS[d]}</b><span class="sp">${esc(F.WORKOUTS[d].name)}</span><span class="mu" style="font-size:12px">${esc(F.WORKOUTS[d].focus.split('·')[0])}</span></div>`).join('')}<div class="tip"><span>💡</span><span>Chest is hit twice a week (Mon heavy, Fri volume). Belly fat leaves through the deficit and steps, while core work builds the muscle underneath. Tell me your real split and I will swap it in.</span></div></div>`;
+      <div class="card" style="--i:7"><h3>Weekly training split <small>tap a day for exercises</small></h3>${[1, 2, 3, 4, 5, 6, 0].map((d) => `<button class="row lrow" data-act="fitgo" data-d="${d}"><b class="num" style="width:44px">${F.DAYS[d]}</b><span class="sp">${esc(F.WORKOUTS[d].name)}</span><span class="mu" style="font-size:12px">${F.WORKOUTS[d].rest ? 'recovery' : F.hardSets(d) + ' sets · ' + F.sessionMin(d) + ' min'}</span><span class="mu">›</span></button>`).join('')}<div class="tip"><span>💡</span><span>Every major muscle is trained twice a week. Belly fat leaves through the calorie deficit and steps; the lifting makes sure what is left underneath is muscle.</span></div></div>`;
   }
 
   /* ----- Fuel ----- */
@@ -318,11 +324,11 @@
       <div class="card" style="--i:1"><h3>Daily targets <small>auto-adjusts with your weight</small></h3>
         <div class="grid3" style="text-align:center"><div class="stat"><b>${inr(tg.kcal)}</b><span>kcal</span></div><div class="stat"><b>${tg.protein} g</b><span>protein</span></div><div class="stat"><b>${tg.fiber} g</b><span>fibre</span></div><div class="stat"><b>${tg.carbs} g</b><span>carbs</span></div><div class="stat"><b>${tg.fat} g</b><span>fat</span></div><div class="stat"><b>${tg.water} L</b><span>water</span></div></div>
         <div style="margin-top:14px" class="mini"><div class="row"><span class="lbl sp">Protein eaten</span><b class="num">${eatP} / ${tg.protein} g</b></div>${bar(eatP / tg.protein * 100)}<div class="row" style="margin-top:6px"><span class="lbl sp">Calories eaten</span><b class="num">${inr(eatK)} / ${inr(tg.kcal)}</b></div>${bar(eatK / tg.kcal * 100, 'food')}</div>
-        <div class="tip"><span>🧮</span><span>Estimated from ${esc(String(S().profile.heightCm))} cm, ${S().profile.age} y, ${kg(tg.weight)} kg: maintenance ≈ ${inr(tg.tdee)} kcal, target ≈ ${inr(tg.kcal)} (about a 650 kcal deficit). Protein is set from your goal weight (2 g/kg). Re-check after 10–14 days of weights.</span></div></div>
+        <div class="tip"><span>🧮</span><span>From ${esc(String(S().profile.heightCm))} cm, ${S().profile.age} y, ${kg(tg.weight)} kg (Mifflin–St Jeor): resting burn ≈ ${inr(tg.bmr)} kcal, maintenance ≈ ${inr(tg.tdee)} kcal with lifting + 10K steps. ${tg.goal === 'cut' ? `Target ${inr(tg.kcal)} kcal = a ${inr(tg.deficit)} kcal (20%) deficit, which is about ${kg(tg.deficit * 7 / 7700)} kg of fat a week.` : tg.goal === 'gain' ? `Target ${inr(tg.kcal)} kcal = a small 250 kcal surplus for lean gain.` : `Target ${inr(tg.kcal)} kcal = maintenance: you are at your goal weight.`} Protein ${tg.protein} g = 2 g per kg of goal weight. Meal portions (rice, roti, oats) resize automatically to land on the target. Re-check after 10–14 days of weigh-ins.</span></div></div>
       <div class="card" style="--i:2"><h3>Today's meals <small>plan ≈ ${inr(mac.kcal)} kcal · ${mac.p} g P</small></h3>${meals}</div>
       <div class="card" style="--i:3"><h3>PG menu planner</h3><p class="mu" style="margin:0 0 8px;font-size:13px">Set what the PG serves each day. Egg and chicken days use PG food; self-managed days use eggs, soya and curd you buy.</p>${pg}</div>
       <div class="card" style="--i:4"><h3>Budget shopping list <small>per week, approx.</small></h3>${[['Eggs', '~30 (2.5 dozen)'], ['Soya chunks', '500 g'], ['Oats', '500 g'], ['Toned milk', '~2 L'], ['Curd', '~1.5 kg'], ['Roasted chana', '350 g'], ['Bananas, apples, guava', '7 + 7 + 7'], ['Whey (optional, big win)', '1 scoop/day']].map((x) => `<div class="row" style="padding:7px 0;border-top:1px solid var(--line)"><span class="sp">${x[0]}</span><span class="mu">${x[1]}</span></div>`).join('')}</div>
-      <div class="card" style="--i:5"><h3>Recomp rules</h3>${[['🍗', 'Protein first at every meal. It protects muscle in a deficit.'], ['🏋️', 'Progressive overload: add reps or weight weekly. Muscle is the reason you keep it.'], ['⚖️', 'Aim for 0.5–1% of body weight lost per week, not more.'], ['🥗', 'Fibre 30–35 g (oats, dal, fruit, salad) keeps hunger quiet.'], ['💧', '3.5 L water. Thirst often disguises itself as hunger.'], ['😴', '7–8 h sleep. It is the cheapest fat-loss tool you own.']].map((x) => `<div class="tip"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('')}</div>
+      <div class="card" style="--i:5"><h3>Recomp rules</h3>${[['🍗', 'Protein first at every meal. It protects muscle in a deficit.'], ['🏋️', 'Progressive overload: add reps or weight weekly. Muscle is the reason you keep it.'], ['⚖️', 'Aim for 0.5–1% of body weight lost per week, not more.'], ['🥗', `Fibre ${tg.fiber} g (14 g per 1,000 kcal: oats, dal, fruit, salad) keeps hunger quiet.`], ['💧', `${tg.water} L water a day for your weight. Thirst often disguises itself as hunger.`], ['😴', '7–8 h sleep. It is the cheapest fat-loss tool you own.']].map((x) => `<div class="tip"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('')}</div>
       <div class="card" style="--i:6"><h3>Vitamins and minerals <small>general, not a diagnosis</small></h3><div class="tip"><span>🧪</span><span>Vitamin D, B12, iron and omega-3 are commonly low in desk-bound lifters in India. Upload your blood reports in Track → Vault and share them with me in chat. I will point out what to ask your doctor about. Don't start supplements blind.</span></div></div>
       ${recent.length ? `<div class="card" style="--i:7"><h3>Recent meal photos</h3><div class="pgrid">${recent.map((p) => `<div class="ph" data-act="viewphoto" data-id="${p.id}"><img data-pid="${p.id}" alt="Meal"><span>${shortDate(p.date)}${p.slot ? ' · ' + p.slot : ''}</span></div>`).join('')}</div></div>` : ''}`;
   }
@@ -390,7 +396,81 @@
       <div class="card" style="--i:2"><h3>Goals <button class="btn sm" data-act="goaladd">${svg('plus')}Goal</button></h3>${st.goals.length ? st.goals.map((g) => { const pct = g.target ? Math.min(100, (g.current / g.target) * 100) : 0; return `<div style="padding:12px 0;border-top:1px solid var(--line)"><div class="row"><b class="sp">${esc(g.title)}</b><button class="ico-btn" style="width:30px;height:30px" data-act="gdel" data-id="${g.id}" aria-label="Delete">${svg('x')}</button></div><div class="row" style="margin:8px 0 6px;gap:8px"><div class="sp">${bar(pct)}</div><b class="num" style="font-size:13px">${g.current}/${g.target} ${esc(g.unit || '')}</b></div><div class="row" style="gap:6px"><button class="btn sm" data-act="ginc" data-id="${g.id}" data-n="-1">−1</button><button class="btn sm pri" data-act="ginc" data-id="${g.id}" data-n="1">+1</button><button class="btn sm" data-act="ginc" data-id="${g.id}" data-n="5">+5</button>${g.due ? `<span class="mu sp" style="text-align:right;font-size:12px">by ${shortDate(g.due)}</span>` : ''}</div></div>`; }).join('') : '<div class="empty">No goals yet. Try "Post 30 reels" or "Hit 1,000 subscribers".</div>'}</div>`;
   }
 
-  const VIEWS = { today: viewToday, plan: viewPlan, fuel: viewFuel, track: viewTrack, tasks: viewTasks };
+  /* ----- Fitness ----- */
+  const unit = (e) => (F.EX[e[0]].eq === 'time' ? (e[2] >= 300 ? '' : ' s') : F.EX[e[0]].eq === 'cardio' ? ' min' : '');
+  function setsReps(e) {
+    const ex = F.EX[e[0]];
+    if (ex.eq === 'time' && e[2] >= 300) return `${Math.round(e[2] / 60)} min`;
+    if (ex.eq === 'cardio') return `${e[2]}–${e[3]} min`;
+    return `${e[1]} × ${e[2]}${e[3] !== e[2] ? '–' + e[3] : ''}${unit(e)}`;
+  }
+  const restTxt = (s) => (s >= 120 ? `${parseFloat((s / 60).toFixed(1))} min` : `${s} s`);
+  function viewFit() {
+    const st = S(), p = st.profile, d = fitDay, wo = F.WORKOUTS[d], t = today();
+    const w = F.curWeight(st), lbm = F.lbm(st), z = F.zone2(p.age), vol = F.weekVolume();
+    const strip = [1, 2, 3, 4, 5, 6, 0].map((x) => `<button class="dy ${x === d ? 'on' : ''} ${x === F.dow(t) ? 'today' : ''}" data-act="fitday" data-d="${x}"><small>${F.DAYS[x]}</small><b style="font-size:13px">${F.WORKOUTS[x].rest ? 'Rest' : F.hardSets(x)}</b><i class="${F.WORKOUTS[x].rest ? '' : 'f'}"></i></button>`).join('');
+    const firstLoad = wo.ex.map((e) => [e, F.recommend(e, st)]).find(([e, r]) => r.kg && ['bb', 'db', 'ez'].includes(F.EX[e[0]].eq));
+    const wu = firstLoad ? F.warmup(firstLoad[1].kg, F.EX[firstLoad[0][0]].eq) : null;
+    const rows = wo.ex.map((e, i) => {
+      const ex = F.EX[e[0]], r = F.recommend(e, st), last = F.lastLog(e[0], st), loggedToday = last && last.d === t;
+      return `<button class="exrow" data-act="ex" data-d="${d}" data-i="${i}"><span class="exn">${i + 1}</span><span class="sp" style="text-align:left;min-width:0"><b>${esc(ex.n)}</b><small>${esc(F.MUSCLES[ex.m] || (ex.m === 'cardio' ? 'Cardio' : 'Mobility'))}${!['time', 'cardio'].includes(ex.eq) ? ` · ${e[4]} in reserve · rest ${restTxt(e[5])}` : ''}</small>${r.kind === 'time' || r.kind === 'cardio' ? '' : `<span class="rec ${r.kind}">${loggedToday ? 'Next session: ' : ''}${esc(r.kind === 'feel' ? 'Pick by feel · log to track' : r.kind === 'bw' ? 'Bodyweight · log your reps' : r.text)}</span>`}</span><span style="display:grid;justify-items:end;gap:4px"><b class="num">${setsReps(e)}</b>${loggedToday ? '<span class="tag c" style="--cc:var(--c-move)">logged ✓</span>' : ''}</span></button>`;
+    }).join('');
+    const volRows = Object.keys(F.VOL_BAND).filter((m) => vol[m]).map((m) => {
+      const [lo, hi] = F.VOL_BAND[m], v = vol[m], ok = v >= lo && v <= hi;
+      return `<div class="row" style="padding:6px 0;border-top:1px solid var(--line);font-size:13px"><span style="width:118px">${F.MUSCLES[m]}</span><span class="sp">${bar(v / 20 * 100)}</span><b class="num" style="width:34px;text-align:right">${parseFloat(v.toFixed(1))}</b><span class="mu" style="width:52px;text-align:right;font-size:11.5px">${ok ? 'on target' : v < lo ? 'light' : 'high'}</span></div>`;
+    }).join('');
+    return `${topbar('Fitness', `Built from your numbers: ${kg(w)} kg · ~${Math.round(lbm)} kg lean mass`)}
+      <div class="card" style="--i:1"><h3>Training experience <small>sets your starting weights</small></h3><div class="seg">${Object.keys(F.EXP).map((k) => `<button class="${(p.exp || 'new') === k ? 'on' : ''}" data-act="exp" data-v="${k}">${F.EXP[k].label.split(' · ')[0]}</button>`).join('')}</div><p class="mu" style="margin:8px 0 0;font-size:12.5px">${esc(F.EXP[p.exp || 'new'].label)}. Pick honestly: it only changes the first-session estimates. Once you log a set, your real numbers take over.</p></div>
+      <div class="days" style="--i:2">${strip}</div>
+      <div class="card" style="--i:3"><h3>${F.DAYS_LONG[d]} · ${esc(wo.name)} <small>${wo.rest ? 'active recovery' : `~${F.sessionMin(d)} min · ${F.hardSets(d)} hard sets`}</small></h3><p class="mu" style="margin:-4px 0 10px;font-size:13px">${esc(wo.focus)}${d === F.dow(t) ? ' · <b style="color:var(--ac-tx)">today</b>' : ''}</p>
+        ${wo.rest ? '' : `<div class="tip"><span>🔥</span><span><b>Warm-up (8–10 min):</b> 5 min easy bike or incline walk, then ramp sets on ${esc(firstLoad ? F.EX[firstLoad[0][0]].n.toLowerCase() : 'the first lift')}${wu ? `: ${wu.map((x) => `${F.fmtKg(x.kg)} kg × ${x.reps}`).join(', ')}` : ': 2–3 lighter sets of 8, 5 and 2 reps'}. Warm-up sets do not count and should feel easy.</span></div>`}
+        <div class="exgrid">${rows}</div>
+        ${wo.rest ? '' : '<p class="mu" style="margin:10px 0 0;font-size:12.5px">Tap an exercise for form cues and to log your sets. "In reserve" = reps you could still do when you stop the set.</p>'}</div>
+      <div class="card" style="--i:4"><h3>Weekly volume <small>hard sets per muscle</small></h3><p class="mu" style="margin:0 0 6px;font-size:12.5px">Research range for growth is about 10–20 hard sets per muscle per week. In a calorie deficit the plan sits in the middle so you can recover. Sets that hit a muscle indirectly count as half.</p>${volRows}</div>
+      <div class="card" style="--i:5"><h3>Cardio + steps <small>for age ${p.age}</small></h3><div class="grid3" style="text-align:center"><div class="stat"><b>${z[0]}–${z[1]}</b><span>Zone 2 bpm</span></div><div class="stat"><b>${F.hrMax(p.age)}</b><span>est. max HR</span></div><div class="stat"><b>${inr(F.stepGoal(t, st))}</b><span>steps today</span></div></div><div class="tip"><span>❤️</span><span>Max heart rate ≈ 208 − 0.7 × age (Tanaka). Zone 2 is 60–70% of that: you can still talk in sentences. Steps and Zone 2 burn fat without eating into recovery from lifting, which hard cardio does.</span></div></div>
+      <div class="card" style="--i:6"><h3>How progress works</h3>${[
+        ['📈', '<b>Double progression.</b> Keep the same weight until every set reaches the top of its rep range. Then add the smallest jump (2.5 kg on upper barbell lifts, 5 kg on lower, the next dumbbell up) and build the reps again.'],
+        ['🎯', '<b>Effort.</b> Stop compounds with ~2 reps in reserve and isolation moves with ~1. Close to failure is where growth happens, without the injury risk of grinding.'],
+        ['⏱️', '<b>Rest.</b> 2–3 min on big lifts, 60–90 s on small ones. Short rest makes you lift less, which means less growth.'],
+        ['⚖️', '<b>In a deficit,</b> keeping your strength is a win. If a lift drops two sessions in a row, eat closer to target, sleep more, and check the 14-day weight trend.'],
+        ['🛌', '<b>Deload</b> every 6–8 weeks, or when everything feels heavy: same exercises, half the sets, for one week.']
+      ].map((x) => `<div class="tip"><span>${x[0]}</span><span>${x[1]}</span></div>`).join('')}<p class="mu" style="margin:10px 0 0;font-size:12px">A training plan, not medical advice. Stop any exercise that causes sharp pain, and check with a doctor if you have an injury or heart condition.</p></div>`;
+  }
+  function exSheet(d, i) {
+    const st = S(), e = F.WORKOUTS[d].ex[i], [id, sets, lo, hi, rir, rest] = e, ex = F.EX[id], r = F.recommend(e, st);
+    const hist = ((st.lifts || {})[id] || []).slice(-5).reverse();
+    const loggable = !['time', 'cardio'].includes(ex.eq);
+    const prev = F.lastLog(id, st), todayLog = prev && prev.d === today() ? prev : null;
+    const kgDef = todayLog ? todayLog.w : r.kg || (prev ? prev.w : '');
+    const wu = r.kg && ['bb', 'db', 'ez'].includes(ex.eq) && F.WORKOUTS[d].ex.findIndex((x) => ['bb', 'db', 'ez'].includes(F.EX[x[0]].eq)) === i ? F.warmup(r.kg, ex.eq) : null;
+    const setRows = loggable ? Array.from({ length: sets }, (_, k) => `<div class="row" style="gap:8px;margin-bottom:8px"><b class="num" style="width:52px;white-space:nowrap">Set ${k + 1}</b>${ex.eq === 'bw' ? '' : `<input class="in" data-kg="${k}" type="number" inputmode="decimal" step="0.5" min="0" value="${todayLog ? todayLog.w : kgDef}" placeholder="kg" aria-label="Set ${k + 1} kg">`}<input class="in" data-rp="${k}" type="number" inputmode="numeric" min="0" value="${todayLog && todayLog.r[k] != null ? todayLog.r[k] : ''}" placeholder="reps (${lo}–${hi})" aria-label="Set ${k + 1} reps"></div>`).join('') : '';
+    openSheet(`<h2>${esc(ex.n)}</h2><p class="lead">${esc(F.MUSCLES[ex.m] || 'Recovery')}${ex.s.length ? ' · also ' + ex.s.map((m) => (F.MUSCLES[m] || m).toLowerCase()).join(', ') : ''}</p>
+      <div class="grid3" style="text-align:center;margin-bottom:10px"><div class="stat"><b>${setsReps(e)}</b><span>${ex.eq === 'cardio' || ex.eq === 'time' ? 'duration' : 'sets × reps'}</span></div><div class="stat"><b>${loggable ? rir : '—'}</b><span>reps in reserve</span></div><div class="stat"><b>${rest ? restTxt(rest) : '—'}</b><span>rest</span></div></div>
+      <div class="tip good"><span>🏋️</span><span><b>${todayLog ? 'Next session' : 'Today'}: ${esc(r.text)}</b><br>${esc(r.why)}</span></div>
+      ${wu ? `<div class="tip"><span>🔥</span><span><b>Ramp-up first:</b> ${wu.map((x) => `${F.fmtKg(x.kg)} kg × ${x.reps}`).join(' → ')}${ex.eq === 'db' ? ' (each hand)' : ''}, about 1 min rest between.</span></div>` : ''}
+      <div class="lbl" style="margin:14px 0 6px">How to do it</div><ul class="exlist" style="margin-top:0">${ex.how.map((h) => `<li><span>${esc(h)}</span></li>`).join('')}</ul>
+      ${loggable ? `<div class="lbl" style="margin:16px 0 8px">Log today's sets ${ex.eq === 'db' ? '<span class="mu" style="text-transform:none;letter-spacing:0">(kg per dumbbell)</span>' : ex.eq === 'machine' || ex.eq === 'cable' ? '<span class="mu" style="text-transform:none;letter-spacing:0">(the number on the stack)</span>' : ''}</div>${setRows}<button class="btn pri block" id="ex-save">${todayLog ? 'Update log' : 'Save sets'}</button>` : ''}
+      ${hist.length ? `<div class="lbl" style="margin:16px 0 4px">History</div><table class="t"><tr><th>Date</th><th>Weight</th><th>Reps</th></tr>${hist.map((h) => `<tr><td>${shortDate(h.d)}</td><td>${h.w ? F.fmtKg(h.w) + ' kg' : 'BW'}</td><td>${h.r.join(', ')}</td></tr>`).join('')}</table>` : ''}
+      <button class="btn block" data-act="close" style="margin-top:12px">Close</button>`, (sh) => {
+      const sv = $('#ex-save', sh); if (!sv) return;
+      sv.onclick = () => {
+        const reps = $$('[data-rp]', sh).map((x) => parseInt(x.value, 10)).map((x) => (Number.isFinite(x) && x >= 0 ? Math.min(200, x) : null));
+        const kgs = $$('[data-kg]', sh).map((x) => parseFloat(x.value)).filter((x) => Number.isFinite(x) && x >= 0);
+        const done = reps.filter((x) => x !== null && x > 0);
+        if (!done.length) return toast('Enter the reps you did');
+        const wv = kgs.length ? Math.min(500, Math.round(Math.max(...kgs) * 2) / 2) : 0; // working weight = heaviest set
+        const L = (st.lifts = st.lifts || {}); const list = (L[id] = L[id] || []);
+        const rec = { d: today(), w: wv, r: done };
+        if (list.length && list[list.length - 1].d === rec.d) list[list.length - 1] = rec; else list.push(rec);
+        if (list.length > 30) list.splice(0, list.length - 30);
+        F.save(); closeSheet(); render();
+        const top = done.length >= sets && done.slice(0, sets).every((x) => x >= hi);
+        toast(top ? `All sets hit ${hi}. Next time go heavier 📈` : `Logged ${done.join(', ')}${wv ? ' @ ' + F.fmtKg(wv) + ' kg' : ''} 💪`);
+      };
+    });
+  }
+
+  const VIEWS = { today: viewToday, plan: viewPlan, fuel: viewFuel, fit: viewFit, track: viewTrack, tasks: viewTasks };
 
   /* ---------- render ---------- */
   function paintNav() {
@@ -405,27 +485,61 @@
     paintNav(); hydrate(v); paintRings();
     justId = null;
   }
-  function go(t) { cur = t; animate = true; if (t === 'plan') selDay = today(); history.replaceState(null, '', '#' + t); render(); window.scrollTo(0, 0); }
+  function go(t) { cur = t; animate = true; if (t === 'plan') selDay = today(); if (t === 'fit') fitDay = F.dow(today()); history.replaceState(null, '', '#' + t); render(); window.scrollTo(0, 0); }
 
   /* ---------- sheets ---------- */
+  /* in-app camera: getUserMedia works on phones AND laptops. The old <input capture> trick is ignored on desktop
+     browsers and on some Android phones, which is why "Camera" was opening the gallery/file picker. */
+  let live = null;
+  function stopLive() { if (live) { live.getTracks().forEach((t) => t.stop()); live = null; } }
   function photoSheet(o) {
     // o: {title, lead, camera:'environment'|'user'|null, accept, onSave(file, note)}
     openSheet(`<h2>${o.title}</h2><p class="lead">${o.lead || ''}</p>
       <div id="ps-pick" class="pick">${o.camera ? `<button class="opt" id="ps-c">${svg('cam')}Camera</button>` : ''}<button class="opt" id="ps-g" ${o.camera ? '' : 'style="grid-column:1/-1"'}>${svg('img')}${o.camera ? 'Gallery' : 'Choose file'}</button></div>
-      <div id="ps-prev" style="display:none">${o.noPreview ? '' : '<img class="preview" id="ps-img" alt="Preview">'}<div class="field"><label>${o.noteLabel || 'Note (optional)'}</label><input class="in" id="ps-note" placeholder="${o.notePh || ''}"></div><button class="btn pri block" id="ps-save">Save</button></div>
+      <div id="ps-live" style="display:none"><div class="live"><video id="ps-vid" playsinline muted autoplay></video></div><div class="row" style="gap:8px;justify-content:center;margin:12px 0 4px"><button class="btn" id="ps-x" aria-label="Cancel">${svg('x')}</button><button class="shutter" id="ps-shot" aria-label="Take photo"></button><button class="btn" id="ps-flip" aria-label="Switch camera">${svg('flip')}</button></div></div>
+      <div id="ps-prev" style="display:none">${o.noPreview ? '' : '<img class="preview" id="ps-img" alt="Preview">'}<div class="field"><label>${o.noteLabel || 'Note (optional)'}</label><input class="in" id="ps-note" placeholder="${o.notePh || ''}"></div><div class="row" style="gap:8px"><button class="btn" id="ps-re">Retake</button><button class="btn pri sp" id="ps-save">Save</button></div></div>
       <input type="file" id="in-c" accept="image/*" capture="${o.camera || 'environment'}" hidden><input type="file" id="in-g" accept="${o.accept || 'image/*'}" hidden>`, (sh) => {
-      let file = null;
+      let file = null, facing = o.camera || 'environment';
+      const show = (id) => ['#ps-pick', '#ps-live', '#ps-prev'].forEach((x) => { $(x, sh).style.display = x === id ? (x === '#ps-pick' ? 'grid' : 'block') : 'none'; });
       const chosen = (f) => {
-        if (!f) return; file = f;
-        $('#ps-pick', sh).style.display = 'none'; $('#ps-prev', sh).style.display = 'block';
-        if (!o.noPreview && f.type.startsWith('image/')) $('#ps-img', sh).src = URL.createObjectURL(f); else if ($('#ps-img', sh)) $('#ps-img', sh).style.display = 'none';
+        if (!f) return; file = f; stopLive(); show('#ps-prev');
+        const im = $('#ps-img', sh);
+        if (im && f.type.startsWith('image/')) { im.style.display = ''; im.src = URL.createObjectURL(f); } else if (im) im.style.display = 'none';
         if (o.noteDefault) $('#ps-note', sh).value = o.noteDefault;
       };
-      const c = $('#ps-c', sh); if (c) c.onclick = () => $('#in-c', sh).click();
+      const vid = $('#ps-vid', sh);
+      const startLive = async () => {
+        stopLive();
+        live = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1920 }, height: { ideal: 1440 } }, audio: false });
+        if (!document.body.contains(vid)) { stopLive(); return; } // sheet closed while the permission prompt was open
+        vid.srcObject = live; vid.classList.toggle('mirror', facing === 'user');
+        show('#ps-live'); await vid.play().catch(() => {});
+      };
+      const c = $('#ps-c', sh);
+      if (c) c.onclick = async () => {
+        if (!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia)) return $('#in-c', sh).click(); // very old browser: fall back
+        try { await startLive(); } catch (err) {
+          show('#ps-pick');
+          toast(err && err.name === 'NotAllowedError' ? 'Camera permission is blocked. Allow it in the browser site settings, or use Gallery.' : err && err.name === 'NotFoundError' ? 'No camera found on this device. Use Gallery instead.' : 'Could not open the camera. Use Gallery instead.', 4200);
+        }
+      };
+      $('#ps-flip', sh).onclick = async () => { facing = facing === 'user' ? 'environment' : 'user'; try { await startLive(); } catch (err) { toast('Could not switch camera'); } };
+      $('#ps-x', sh).onclick = () => { stopLive(); show('#ps-pick'); };
+      $('#ps-shot', sh).onclick = () => {
+        if (!vid.videoWidth) return;
+        const cv = document.createElement('canvas'); cv.width = vid.videoWidth; cv.height = vid.videoHeight;
+        cv.getContext('2d').drawImage(vid, 0, 0);
+        cv.toBlob((b) => { if (b) chosen(new File([b], 'camera-' + Date.now() + '.jpg', { type: 'image/jpeg' })); }, 'image/jpeg', 0.9);
+      };
+      $('#ps-re', sh).onclick = () => { file = null; show('#ps-pick'); };
       $('#ps-g', sh).onclick = () => $('#in-g', sh).click();
       $('#in-c', sh).onchange = (e) => chosen(e.target.files[0]);
       $('#in-g', sh).onchange = (e) => chosen(e.target.files[0]);
-      $('#ps-save', sh).onclick = async () => { const btn = $('#ps-save', sh); btn.disabled = true; btn.textContent = 'Saving…'; await o.onSave(file, $('#ps-note', sh).value.trim()); closeSheet(); };
+      $('#ps-save', sh).onclick = async () => {
+        if (!file) return;
+        const btn = $('#ps-save', sh); btn.disabled = true; btn.textContent = 'Saving…';
+        try { await o.onSave(file, $('#ps-note', sh).value.trim()); closeSheet(); } catch (err) { btn.disabled = false; btn.textContent = 'Save'; toast('Could not save. Storage may be full: delete some old photos.'); }
+      };
     });
   }
   function mealPhoto(key, id) {
@@ -483,7 +597,8 @@
   }
   function waterSheet() {
     const key = today();
-    numberSheet({ title: 'Water today', lead: 'Target 3.5 L. Enter total millilitres.', label: 'Millilitres', value: S().water[key] || '', ph: '0', step: 50, quick: [['+250 ml', 250], ['+500 ml', 500], ['+1 L', 1000]], onSave: (v) => { S().water[key] = Math.round(v); F.save(); render(); if (v >= 3500) toast('Hydration goal hit 💧'); } });
+    const wt = F.targets(S()).water * 1000;
+    numberSheet({ title: 'Water today', lead: `Target ${wt / 1000} L (about 35 ml per kg of body weight, plus 0.5 L for training). Enter total millilitres.`, label: 'Millilitres', value: S().water[key] || '', ph: '0', step: 50, quick: [['+250 ml', 250], ['+500 ml', 500], ['+1 L', 1000]], onSave: (v) => { S().water[key] = Math.round(v); F.save(); render(); if (v >= wt) toast('Hydration goal hit 💧'); } });
   }
   function measureSheet() {
     const last = S().measures[S().measures.length - 1] || {};
@@ -539,7 +654,7 @@
         S().onboarded = true; F.save(); closeSheet(); render(); toast(`Let's go${q.name ? ', ' + q.name.split(' ')[0] : ''}. Day 1 starts now 🔥`);
         setTimeout(askNotif, 700);
       };
-    });
+    }, { lock: true });
   }
   function askNotif() {
     if (!('Notification' in window) || S().notif.on || Notification.permission === 'denied') return;
@@ -596,6 +711,7 @@
       <div class="card" style="margin:14px 0 10px"><h3>Profile</h3>
         <div class="field"><label>Name</label><input class="in" data-p="name" value="${esc(p.name)}"></div>
         <div class="grid3"><div class="field"><label>Height cm</label><input class="in" data-p="heightCm" type="number" value="${p.heightCm}"></div><div class="field"><label>Age</label><input class="in" data-p="age" type="number" value="${p.age}"></div><div class="field"><label>Goal kg</label><input class="in" data-p="targetWeight" type="number" step="0.1" value="${p.targetWeight}"></div></div>
+        <div class="field"><label>Sex (for calorie and strength maths)</label><select class="in" data-p="sex"><option value="m" ${p.sex === 'm' ? 'selected' : ''}>Male</option><option value="f" ${p.sex === 'f' ? 'selected' : ''}>Female</option></select></div>
         <div class="grid2"><div class="field"><label>Start weight kg</label><input class="in" data-p="startWeight" type="number" step="0.1" value="${p.startWeight}"></div><div class="field"><label>21-day start</label><input class="in" data-p="startDate" type="date" value="${p.startDate}"></div></div>
         <div class="grid2"><div class="field"><label>Wake</label><input class="in" data-p="wake" type="time" value="${p.wake}"></div><div class="field"><label>Lights out</label><input class="in" data-p="bed" type="time" value="${p.bed}"></div></div>
         <label class="row" style="gap:10px;margin-bottom:6px"><input type="checkbox" data-p="twoLong" ${p.twoLong ? 'checked' : ''} style="width:20px;height:20px;accent-color:var(--ac)"><span>Plan a second long video each week</span></label></div>
@@ -607,6 +723,8 @@
       $$('[data-p]', sh).forEach((el) => (el.onchange = () => {
         const k = el.dataset.p, q = S().profile;
         q[k] = el.type === 'checkbox' ? el.checked : el.type === 'number' ? parseFloat(el.value) || q[k] : el.value || q[k];
+        S().profile = F.sanitize({ profile: S().profile }).profile; // clamps out-of-range numbers (e.g. age 5, height 20)
+        if (el.type === 'number' && parseFloat(el.value) !== S().profile[k]) { el.value = S().profile[k]; toast('That value is out of range, kept ' + S().profile[k]); }
         F.save(); render();
       }));
       $$('[data-c]', sh).forEach((el) => (el.onchange = () => {
@@ -685,7 +803,7 @@
   document.addEventListener('click', (e) => {
     const el = e.target.closest('[data-act]'); if (!el) return;
     const a = el.dataset.act, d = el.dataset, st = S();
-    if (a === 'scrim') { if (e.target === el) closeSheet(); return; }
+    if (a === 'scrim') { if (e.target === el && !$('#sheet-root').dataset.lock) closeSheet(); return; }
     if (a === 'close') return closeSheet();
     if (a === 'nav') return go(d.v);
     if (a === 'settings') return settingsSheet();
@@ -700,6 +818,10 @@
     if (a === 'undo') { e.stopPropagation(); return setStatus(d.key, d.id, null); }
     if (a === 'auto') { e.stopPropagation(); return ({ weigh: weightSheet, steps: stepsSheet, water: waterSheet }[d.auto] || (() => {}))(); }
     if (a === 'cam') { e.stopPropagation(); return mealPhoto(d.key, d.id); }
+    if (a === 'fitgo') { e.stopPropagation(); fitDay = parseInt(d.d, 10); cur = 'fit'; animate = true; history.replaceState(null, '', '#fit'); render(); return window.scrollTo(0, 0); }
+    if (a === 'fitday') { fitDay = parseInt(d.d, 10); return render(); }
+    if (a === 'ex') return exSheet(parseInt(d.d, 10), parseInt(d.i, 10));
+    if (a === 'exp') { st.profile.exp = d.v; F.save(); return render(); }
     if (a === 'mode') { st.profile.mode = d.v; if (st.dayMeta[d.key]) delete st.dayMeta[d.key].mode; F.save(); return render(); }
     if (a === 'daymode') { (st.dayMeta[d.key] = st.dayMeta[d.key] || {}).mode = d.v; F.save(); return render(); }
     if (a === 'office') { (st.dayMeta[d.key] = st.dayMeta[d.key] || {}).office = d.v === '1'; F.save(); return render(); }
@@ -726,7 +848,7 @@
     const el = e.target.closest('[data-act="pg"]');
     if (el) { S().profile.pgPlan[el.dataset.d] = el.value; F.save(); render(); }
   });
-  document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSheet(); });
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('#sheet-root').dataset.lock) closeSheet(); });
   document.addEventListener('visibilitychange', async () => {
     if (document.visibilityState !== 'visible') return;
     const n = await F.mergePending(); if (n) toast('Logged from your notification ✅');
@@ -757,7 +879,7 @@
     setInterval(tickAlerts, 20000);
     setInterval(() => { if (document.visibilityState === 'visible' && !$('.sheet') && !document.activeElement.matches('input,select,textarea')) render(); }, 60000);
   }
-  window.addEventListener('hashchange', handleHash);
+  window.addEventListener('hashchange', () => { if (!handleHash()) { animate = true; render(); } });
   boot();
   F.ui = { render, toast, go };
 })();

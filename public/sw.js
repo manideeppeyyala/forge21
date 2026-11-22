@@ -1,6 +1,6 @@
 /* Forge21 service worker: offline shell, notification actions, background checks, push-ready */
-const VER = 'forge21-v3';
-const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'merge.js', 'store.js', 'sync.js', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg'];
+const VER = 'forge21-v4';
+const SHELL = ['./', 'index.html', 'styles.css', 'data.js', 'fitness.js', 'merge.js', 'store.js', 'sync.js', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/favicon.svg'];
 
 self.addEventListener('install', (e) => {
   e.waitUntil(caches.open(VER).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

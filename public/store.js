@@ -9,12 +9,12 @@
     profile: {
       name: '', heightCm: 172, age: 28, sex: 'm',
       startWeight: 90, targetWeight: 75, startDate: F.dk(), // neutral placeholders; real numbers are entered at onboarding
-      mode: 'hyd', wake: '05:45', bed: '22:15', twoLong: false,
+      mode: 'hyd', wake: '05:45', bed: '22:15', twoLong: false, exp: 'new',
       pgPlan: { 0: 'chicken', 1: 'self', 2: 'egg', 3: 'chicken', 4: 'self', 5: 'egg', 6: 'self' }
     },
     notif: { on: false },
     dayMeta: {}, done: {}, steps: {}, water: {}, weights: {},
-    measures: [], meals: {}, photos: [], tasks: [], goals: [],
+    measures: [], meals: {}, photos: [], tasks: [], goals: [], lifts: {},
     commit: { wcVisit: null, wcInterval: 12, wcPost: null, wcEvery: 3, wcName: 'Venue shoot' },
     _m: {}, _t: {} // sync: per-key modified times, deleted-item tombstones
   });

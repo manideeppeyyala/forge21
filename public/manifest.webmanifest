@@ -18,6 +18,7 @@
   "shortcuts": [
     { "name": "Today", "url": "./#today", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Fuel", "url": "./#fuel", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
+    { "name": "Fitness", "url": "./#fit", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
     { "name": "Track", "url": "./#track", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
   ]
 }
